@@ -11,7 +11,8 @@ app = FastAPI()
 # CORS Setup
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["https://your-frontend.vercel.app"],
+    allow_origins=["https://dreamhome-frontend.vercel.app/"],  # your frontend URL
+    allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
