@@ -4,7 +4,7 @@ from database import user_collection
 from auth import hash_password, verify_password, create_access_token
 from bson import ObjectId
 
-router = APIRouter(prefix="/api", tags=["auth"])
+router = APIRouter(tags=["auth"])  # Remove prefix="/api"
 
 class UserRegister(BaseModel):
     name: str
