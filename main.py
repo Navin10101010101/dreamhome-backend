@@ -6,12 +6,12 @@ from routes.user import router as user_router
 from routes.property import router as property_router
 from routes.contact import router as contact_router
 
-app = FastAPI()
+app = FastAPI(title="DreamHome API")
 
 # CORS Setup
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["https://dreamhome-backend-xyc4.onrender.com"],  # your frontend URL
+    allow_origins=["http://localhost:3000", "https://dreamhome-frontend.vercel.app"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -21,10 +21,10 @@ app.add_middleware(
 app.mount("/uploads", StaticFiles(directory="uploads"), name="uploads")
 
 # Include routers
-app.include_router(auth_router)
-app.include_router(user_router)
-app.include_router(property_router)
-app.include_router(contact_router)
+app.include_router(auth_router, prefix="/api")
+app.include_router(user_router, prefix="/api")
+app.include_router(property_router, prefix="/api")
+app.include_router(contact_router, prefix="/api")
 
 # Root endpoint
 @app.get("/")
