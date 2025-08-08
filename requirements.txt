@@ -7,3 +7,4 @@ passlib[bcrypt]==1.7.4
 python-multipart==0.0.6
 slowapi==0.1.8
 pydantic[email]
+loguru==0.7.2
