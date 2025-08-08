@@ -18,12 +18,12 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Create Uploads directory if it doesn't exist
-os.makedirs("Uploads/images", exist_ok=True)
-os.makedirs("Uploads/videos", exist_ok=True)
+# Create uploads directory if it doesn't exist
+os.makedirs("uploads/images", exist_ok=True)
+os.makedirs("uploads/videos", exist_ok=True)
 
 # Mount the uploads directory to serve images and videos
-app.mount("/uploads", StaticFiles(directory="Uploads"), name="uploads")
+app.mount("/uploads", StaticFiles(directory="uploads"), name="uploads")
 
 # Include routers
 app.include_router(auth_router, prefix="/api")
