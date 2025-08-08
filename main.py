@@ -8,7 +8,6 @@ from routes.contact import router as contact_router
 
 app = FastAPI(title="DreamHome API")
 
-# CORS Setup
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["http://localhost:3000", "https://dreamhome-frontend.vercel.app"],
@@ -17,16 +16,13 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Mount the uploads directory to serve images
-app.mount("/uploads", StaticFiles(directory="uploads"), name="uploads")
+app.mount("/uploads", StaticFiles(directory="Uploads"), name="uploads")
 
-# Include routers
 app.include_router(auth_router, prefix="/api")
 app.include_router(user_router, prefix="/api")
 app.include_router(property_router, prefix="/api")
 app.include_router(contact_router, prefix="/api")
 
-# Root endpoint
 @app.get("/")
 def read_root():
     return {"message": "DreamHome API is running"}

@@ -10,7 +10,7 @@ from bson import ObjectId
 import json
 import os
 
-router = APIRouter(prefix="/api", tags=["properties"])
+router = APIRouter(tags=["properties"])  # Removed prefix="/api"
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="api/login")
 
@@ -67,7 +67,7 @@ async def create_property(
             "exterior_view": [], "living_room": [], "bedrooms": [], "bathrooms": [],
             "kitchen": [], "floor_plan": [], "master_plan": [], "location_map": [], "others": []
         }
-        file_paths = []
+        video_urls = []
         for category, files in [
             ("exterior_view", exterior_view), ("living_room", living_room), ("bedrooms", bedrooms),
             ("bathrooms", bathrooms), ("kitchen", kitchen), ("floor_plan", floor_plan),
@@ -75,122 +75,123 @@ async def create_property(
         ]:
             for img in files:
                 if img.size > 10 * 1024 * 1024:
-                    raise HTTPException(status_code=400, detail="Image too large (max 10MB)")
+                    raise HTTPException(status_code=400, detail=f"Image {img.filename} exceeds 10MB limit")
                 safe_name = secure_filename(img.filename)
                 file_path = f"uploads/images/{safe_name}"
                 await save_file(img, file_path)
-                image_urls[category].append(file_path)
-                file_paths.append(file_path)
+                image_urls[category].append(f"/uploads/images/{safe_name}")
 
-        video_urls = []
         for video in videos:
             if video.size > 50 * 1024 * 1024:
-                raise HTTPException(status_code=400, detail="Video too large (max 50MB)")
+                raise HTTPException(status_code=400, detail=f"Video {video.filename} exceeds 50MB limit")
             safe_name = secure_filename(video.filename)
             file_path = f"uploads/videos/{safe_name}"
             await save_file(video, file_path)
-            video_urls.append(file_path)
-            file_paths.append(file_path)
+            video_urls.append(f"/uploads/videos/{safe_name}")
 
-        personal = data.get("personalDetails", {})
-        property_info = data.get("propertyDetails", {})
-        features = data.get("propertyFeatures", {})
-        location = data.get("locationDetails", {})
-
-        residential_types = ["Flat", "Apartment", "Villa", "House", "Farm House"]
-        land_types = ["Residential Land", "Commercial Land", "Agriculture Land"]
         property_data = {
-            "title": property_info.get("title"),
-            "propertyType": property_info.get("propertyType"),
-            "price": property_info.get("price"),
-            "negotiable": property_info.get("negotiable"),
-            "location": {
-                "state": location.get("state"),
-                "city": location.get("city"),
-                "locality": location.get("locality"),
-                "address": location.get("address"),
-                "pinCode": location.get("pinCode"),
-                "landmarks": location.get("landmarks")
-            },
+            "title": data.get("title"),
+            "propertyType": data.get("propertyType"),
+            "price": data.get("price"),
+            "location": data.get("locationDetails", {}),
+            "bhk": data.get("bhk"),
+            "description": data.get("description"),
             "images": image_urls,
             "videos": video_urls,
-            "createdAt": datetime.now(),
+            "createdAt": datetime.utcnow().isoformat(),
+            "negotiable": data.get("negotiable"),
+            "availabilityStatus": data.get("availabilityStatus"),
+            "propertyStatus": data.get("propertyStatus"),
+            "amenities": data.get("amenities", {}),
             "listedBy": user_id,
-            "personalDetails": personal,
+            "propertyFeatures": data.get("propertyFeatures", {})
         }
 
-        if property_info.get("propertyType") in residential_types:
-            property_data.update({
-                "availabilityStatus": property_info.get("availabilityStatus"),
-                "propertyStatus": property_info.get("propertyStatus"),
-                "bhk": features.get("bhk"),
-                "amenities": {
-                    "parking": features.get("parking", "No"),
-                    "lift": features.get("lift", "No"),
-                    "security": features.get("security", "No"),
-                    "powerBackup": features.get("powerBackup", "No"),
-                    "waterSupply": features.get("waterSupply", "No"),
-                    "boundaryWall": features.get("boundaryWall", "No"),
-                    "gatedCommunity": features.get("gatedCommunity", "No"),
-                    "bathrooms": features.get("bathrooms", "1"),
-                    "totalFloors": features.get("totalFloors", "N/A"),
-                    "floorNo": features.get("floorNo", "N/A"),
-                    "furnishing": features.get("furnishing", "N/A"),
-                    "builtupArea": features.get("builtupArea", "N/A"),
-                    "carpetArea": features.get("carpetArea", "N/A")
-                },
-                "propertyFeatures": features,
-            })
-        elif property_info.get("propertyType") in land_types:
-            property_data.update({
-                "amenities": {
-                    "parking": features.get("parking", "No"),
-                    "security": features.get("security", "No"),
-                    "powerBackup": features.get("powerBackup", "No"),
-                    "waterSupply": features.get("waterSupply", "No"),
-                    "boundaryWall": features.get("boundaryWall", "No"),
-                    "gatedCommunity": features.get("gatedCommunity", "No"),
-                },
-                "propertyFeatures": {
-                    "areaUnit": features.get("areaUnit", "N/A"),
-                    "areaValue": features.get("areaValue", "N/A"),
-                    "anyConstructionDone": features.get("anyConstructionDone", "No"),
-                    "plotFacing": features.get("plotFacing", "N/A"),
-                    "transactionType": features.get("transactionType", "N/A"),
-                    "roadAccessType": features.get("roadAccessType", "N/A"),
-                }
-            })
-        else:  # Office
-            property_data.update({
-                "amenities": {
-                    "parking": features.get("parking", "No"),
-                    "security": features.get("security", "No"),
-                    "powerBackup": features.get("powerBackup", "No"),
-                    "waterSupply": features.get("waterSupply", "No"),
-                    "boundaryWall": features.get("boundaryWall", "No"),
-                    "gatedCommunity": features.get("gatedCommunity", "No"),
-                    "lift": features.get("lift", "No"),
-                    "internet": features.get("internet", "No"),
-                    "publicTransport": features.get("publicTransport", "No"),
-                    "pantry": features.get("pantry", "Not Available"),
-                    "washroom": features.get("washroom", "Not Available"),
-                },
-                "propertyFeatures": {
-                    "carpetArea": features.get("carpetArea", "N/A"),
-                    "floorNo": features.get("floorNo", "N/A"),
-                    "furnishing": features.get("furnishing", "N/A"),
-                    "cabins": features.get("cabins", "N/A"),
-                    "workstations": features.get("workstations", "N/A"),
-                    "roadAccessType": features.get("roadAccessType", "N/A"),
-                }
-            })
-
         result = property_collection.insert_one(property_data)
-        return {"status": "success", "property_id": str(result.inserted_id)}
+        property_data["id"] = str(result.inserted_id)
+        return property_data
+    except json.JSONDecodeError:
+        raise HTTPException(status_code=400, detail="Invalid form data")
     except Exception as e:
-        for file_path in file_paths:
-            if os.path.exists(file_path):
-                os.remove(file_path)
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.get("/properties")
+async def get_properties():
+    try:
+        properties = []
+        residential_types = ["Apartment", "Independent House", "Villa", "Builder Floor", "Studio"]
+        land_types = ["Residential Plot", "Commercial Plot", "Agricultural Land", "Industrial Land"]
+
+        for prop in property_collection.find({}, {"_id": 0}):
+            prop["id"] = str(prop.get("_id"))
+            if prop.get("propertyType") in residential_types:
+                prop["availabilityStatus"] = prop.get("availabilityStatus", "N/A")
+                prop["propertyStatus"] = prop.get("propertyStatus", "N/A")
+                prop["bhk"] = prop.get("bhk", "N/A")
+                features = prop.get("propertyFeatures", {})
+                prop["amenities"] = {
+                    **{
+                        "parking": "No", "lift": "No", "security": "No", "powerBackup": "No",
+                        "waterSupply": "No", "boundaryWall": "No", "gatedCommunity": "No", "bathrooms": "1"
+                    },
+                    **prop.get("amenities", {}),
+                    **{
+                        "totalFloors": features.get("totalFloors", "N/A"),
+                        "floorNo": features.get("floorNo", "N/A"),
+                        "furnishing": features.get("furnishing", "N/A"),
+                        "builtupArea": features.get("builtupArea", "N/A"),
+                        "carpetArea": features.get("carpetArea", "N/A")
+                    }
+                }
+            elif prop.get("propertyType") in land_types:
+                prop["availabilityStatus"] = prop.get("availabilityStatus", "N/A")
+                prop["propertyStatus"] = prop.get("propertyStatus", "N/A")
+                prop["bhk"] = prop.get("bhk", "N/A")
+                features = prop.get("propertyFeatures", {})
+                prop["amenities"] = {
+                    **{
+                        "parking": "No", "security": "No", "powerBackup": "No",
+                        "waterSupply": "No", "boundaryWall": "No", "gatedCommunity": "No"
+                    },
+                    **prop.get("amenities", {}),
+                }
+                prop["propertyFeatures"] = {
+                    **{
+                        "areaUnit": "N/A",
+                        "areaValue": "N/A",
+                        "anyConstructionDone": "No",
+                        "plotFacing": "N/A",
+                        "transactionType": "N/A",
+                        "roadAccessType": "N/A"
+                    },
+                    **features
+                }
+            else:  # Office
+                prop["availabilityStatus"] = prop.get("availabilityStatus", "N/A")
+                prop["propertyStatus"] = prop.get("propertyStatus", "N/A")
+                prop["bhk"] = prop.get("bhk", "N/A")
+                features = prop.get("propertyFeatures", {})
+                prop["amenities"] = {
+                    **{
+                        "parking": "No", "security": "No", "powerBackup": "No",
+                        "waterSupply": "No", "boundaryWall": "No", "gatedCommunity": "No",
+                        "lift": "No", "internet": "No", "publicTransport": "No",
+                        "pantry": "Not Available", "washroom": "Not Available"
+                    },
+                    **prop.get("amenities", {}),
+                }
+                prop["propertyFeatures"] = {
+                    **{
+                        "carpetArea": "N/A", "floorNo": "N/A", "furnishing": "N/A",
+                        "cabins": "N/A", "workstations": "N/A", "roadAccessType": "N/A"
+                    },
+                    **features
+                }
+                
+            prop["listedBy"] = prop.get("listedBy", "Unknown")
+            properties.append(prop)
+        return properties
+    except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
 @router.get("/user/properties", response_model=List[PropertyResponse])
