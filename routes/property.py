@@ -4,7 +4,7 @@ from pydantic import BaseModel
 from typing import List, Optional, Dict, Union
 from database import property_collection, user_collection
 from auth import decode_access_token
-from utils.file_utils import secure_filename, save_file, normalize_images_field
+from utils.file_utils import secure_filename, save_file_to_s3, normalize_images_field
 from datetime import datetime
 from bson import ObjectId
 import logging
@@ -28,6 +28,7 @@ class PropertyResponse(BaseModel):
     bhk: Optional[str] = None
     description: Optional[str] = None
     images: Dict[str, List[str]]
+    videos: List[str]
     createdAt: str
     negotiable: Optional[str] = None
     availabilityStatus: Optional[str] = None
@@ -65,6 +66,7 @@ async def create_property(
             raise HTTPException(status_code=404, detail="User not found")
 
         data = json.loads(formData)
+        bucket_name = os.getenv("S3_BUCKET_NAME", "dreamhome-uploads-2025")
 
         image_urls = {
             "exterior_view": [], "living_room": [], "bedrooms": [], "bathrooms": [],
@@ -72,7 +74,7 @@ async def create_property(
         }
         video_urls = []
 
-        # Handle image uploads
+        # Handle image uploads to S3
         for category, files in [
             ("exterior_view", exterior_view), ("living_room", living_room), ("bedrooms", bedrooms),
             ("bathrooms", bathrooms), ("kitchen", kitchen), ("floor_plan", floor_plan),
@@ -82,22 +84,24 @@ async def create_property(
                 if img.size > 10 * 1024 * 1024:
                     raise HTTPException(status_code=400, detail=f"Image {img.filename} exceeds 10MB limit")
                 safe_name = secure_filename(img.filename)
-                file_path = f"uploads/images/{safe_name}"
-                if await save_file(img, file_path):
-                    image_urls[category].append(f"/uploads/images/{safe_name}")
+                file_path = f"images/{safe_name}"
+                url = await save_file_to_s3(img, bucket_name, file_path)
+                if url:
+                    image_urls[category].append(url)
                 else:
-                    logger.warning(f"Skipping image {img.filename} due to save failure")
+                    logger.warning(f"Skipping image {img.filename} due to upload failure")
 
-        # Handle video uploads
+        # Handle video uploads to S3
         for video in videos:
             if video.size > 50 * 1024 * 1024:
                 raise HTTPException(status_code=400, detail=f"Video {video.filename} exceeds 50MB limit")
             safe_name = secure_filename(video.filename)
-            file_path = f"uploads/videos/{safe_name}"
-            if await save_file(video, file_path):
-                video_urls.append(f"/uploads/videos/{safe_name}")
+            file_path = f"videos/{safe_name}"
+            url = await save_file_to_s3(video, bucket_name, file_path)
+            if url:
+                video_urls.append(url)
             else:
-                logger.warning(f"Skipping video {video.filename} due to save failure")
+                logger.warning(f"Skipping video {video.filename} due to upload failure")
 
         property_data = {
             "title": data.get("title"),
@@ -470,6 +474,13 @@ async def get_filtered_properties(
                 prop["propertyStatus"] = prop.get("propertyStatus", "N/A")
                 prop["bhk"] = prop.get("bhk", "N/A")
                 features = prop.get("propertyFeatures", {})
+                prop["amenities"] = {
+                    **{
+                        "parking": "No", "security": "No", "powerBackup": "No",
+                        "waterSupply": "No", "boundaryWall": "No", "gatedCommunity": "No"
+                    },
+                    **prop.get("amenities", {}),
+                }
                 prop["propertyFeatures"] = {
                     **{
                         "areaUnit": "N/A",
