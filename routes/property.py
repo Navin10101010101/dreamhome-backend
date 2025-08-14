@@ -89,7 +89,7 @@ async def create_property(
                 if url:
                     image_urls[category].append(url)
                 else:
-                    logger.warning(f"Skipping image {img.filename} due to upload failure")
+                    raise HTTPException(status_code=500, detail=f"Failed to upload image {img.filename} to S3")
 
         # Handle video uploads to S3
         for video in videos:
@@ -101,7 +101,7 @@ async def create_property(
             if url:
                 video_urls.append(url)
             else:
-                logger.warning(f"Skipping video {video.filename} due to upload failure")
+                raise HTTPException(status_code=500, detail=f"Failed to upload video {video.filename} to S3")
 
         property_data = {
             "title": data.get("title"),
