@@ -23,9 +23,7 @@ def secure_filename(filename: str):
 
 async def save_file_to_s3(file: UploadFile, bucket_name: str, file_path: str):
     try:
-        # Read file content
-        content = await file.read()
-        s3_client.put_object(Bucket=bucket_name, Key=file_path, Body=content)
+        s3_client.upload_fileobj(file.file, bucket_name, file_path)
         url = f"https://{bucket_name}.s3.amazonaws.com/{file_path}"
         logger.info(f"Successfully uploaded file to S3: {url}")
         return url

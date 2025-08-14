@@ -59,21 +59,13 @@ async def create_property(
     try:
         payload = decode_access_token(token)
         if not payload:
-            logger.error("Invalid token")
             raise HTTPException(status_code=401, detail="Invalid token")
         user_id = payload.get("sub")
         user = user_collection.find_one({"_id": ObjectId(user_id)})
         if not user:
-            logger.error(f"User not found: {user_id}")
             raise HTTPException(status_code=404, detail="User not found")
 
-        try:
-            data = json.loads(formData)
-            logger.info(f"Parsed formData: {data}")
-        except json.JSONDecodeError as e:
-            logger.error(f"Invalid JSON in formData: {str(e)}")
-            raise HTTPException(status_code=400, detail="Invalid form data")
-
+        data = json.loads(formData)
         bucket_name = os.getenv("S3_BUCKET_NAME", "dreamhome-uploads-2025")
 
         image_urls = {
@@ -82,7 +74,7 @@ async def create_property(
         }
         video_urls = []
 
-        # Handle image uploads
+        # Handle image uploads to S3
         for category, files in [
             ("exterior_view", exterior_view), ("living_room", living_room), ("bedrooms", bedrooms),
             ("bathrooms", bathrooms), ("kitchen", kitchen), ("floor_plan", floor_plan),
@@ -90,7 +82,6 @@ async def create_property(
         ]:
             for img in files:
                 if img.size > 10 * 1024 * 1024:
-                    logger.error(f"Image {img.filename} exceeds 10MB limit")
                     raise HTTPException(status_code=400, detail=f"Image {img.filename} exceeds 10MB limit")
                 safe_name = secure_filename(img.filename)
                 file_path = f"images/{safe_name}"
@@ -101,10 +92,9 @@ async def create_property(
                     logger.warning(f"Skipping image {img.filename} due to upload failure")
                     raise HTTPException(status_code=500, detail=f"Failed to upload image {img.filename} to S3")
 
-        # Handle video uploads
+        # Handle video uploads to S3
         for video in videos:
             if video.size > 50 * 1024 * 1024:
-                logger.error(f"Video {video.filename} exceeds 50MB limit")
                 raise HTTPException(status_code=400, detail=f"Video {video.filename} exceeds 50MB limit")
             safe_name = secure_filename(video.filename)
             file_path = f"videos/{safe_name}"
@@ -129,12 +119,13 @@ async def create_property(
             "availabilityStatus": data.get("availabilityStatus"),
             "propertyStatus": data.get("propertyStatus"),
             "amenities": data.get("amenities", {}),
-            "listedBy": user_id,
+            "listedBy": str(user_id),  # Convert ObjectId to string
             "propertyFeatures": data.get("propertyFeatures", {})
         }
 
         result = property_collection.insert_one(property_data)
         property_data["id"] = str(result.inserted_id)
+        property_data["_id"] = str(property_data["id"])  # Ensure _id is string if present
         return property_data
     except json.JSONDecodeError:
         raise HTTPException(status_code=400, detail="Invalid form data")
@@ -219,7 +210,6 @@ async def get_properties():
             properties.append(prop)
         return properties
     except Exception as e:
-        logger.error(f"Error in get_properties: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))
 
 @router.get("/user/properties", response_model=List[PropertyResponse])
@@ -388,7 +378,6 @@ async def get_properties():
             properties.append(prop)
         return properties
     except Exception as e:
-        logger.error(f"Error in get_properties: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))
 
 @router.get("/properties/filtered", response_model=List[PropertyResponse])
@@ -533,7 +522,6 @@ async def get_filtered_properties(
             properties.append(prop)
         return properties
     except Exception as e:
-        logger.error(f"Error in get_filtered_properties: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))
 
 @router.get("/properties/offices", response_model=List[PropertyResponse])
@@ -619,7 +607,6 @@ async def get_office_properties():
             properties.append(prop)
         return properties
     except Exception as e:
-        logger.error(f"Error in get_office_properties: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))
 
 @router.get("/properties/land", response_model=List[PropertyResponse])
@@ -705,5 +692,4 @@ async def get_land_properties():
             properties.append(prop)
         return properties
     except Exception as e:
-        logger.error(f"Error in get_land_properties: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))
