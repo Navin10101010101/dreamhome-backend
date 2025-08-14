@@ -13,7 +13,8 @@ logger = logging.getLogger(__name__)
 s3_client = boto3.client(
     's3',
     aws_access_key_id=os.getenv('AWS_ACCESS_KEY'),
-    aws_secret_access_key=os.getenv('AWS_SECRET_KEY')
+    aws_secret_access_key=os.getenv('AWS_SECRET_KEY'),
+    region_name='us-east-1'  # Ensure correct region
 )
 
 def secure_filename(filename: str):
@@ -22,7 +23,9 @@ def secure_filename(filename: str):
 
 async def save_file_to_s3(file: UploadFile, bucket_name: str, file_path: str):
     try:
-        s3_client.upload_fileobj(file.file, bucket_name, file_path)
+        # Read file content
+        content = await file.read()
+        s3_client.put_object(Bucket=bucket_name, Key=file_path, Body=content)
         url = f"https://{bucket_name}.s3.amazonaws.com/{file_path}"
         logger.info(f"Successfully uploaded file to S3: {url}")
         return url
